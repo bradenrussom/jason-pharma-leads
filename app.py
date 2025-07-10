@@ -124,25 +124,50 @@ ct_api = ClinicalTrialsAPI()
 
 @app.route('/api/debug')
 def debug_api():
-    """Debug endpoint to test API connectivity"""
+    """Debug endpoint to test API connectivity and see data structure"""
     try:
-        # Test basic API call
-        test_url = "https://clinicaltrials.gov/api/query/study_fields"
+        # Test the new API v2.0
+        test_url = "https://clinicaltrials.gov/api/v2/studies"
         test_params = {
-            'expr': 'AREA[Phase]Phase 3',
-            'fields': 'NCTId,BriefTitle,Phase',
-            'max_rnk': 5,
-            'fmt': 'json'
+            'query.term': 'AREA[Phase]PHASE3',
+            'pageSize': 2,
+            'format': 'json'
         }
         
         response = requests.get(test_url, params=test_params, timeout=30)
         
+        # Also get sample leads data
+        leads_response = get_leads()
+        
+        # Parse leads data
+        sample_leads = []
+        fields_info = {}
+        
+        if leads_response.status_code == 200:
+            try:
+                sample_leads = json.loads(leads_response.data)
+                if sample_leads:
+                    first_lead = sample_leads[0]
+                    fields_info = {
+                        'total_leads': len(sample_leads),
+                        'fields_in_first_lead': list(first_lead.keys()),
+                        'sample_values': {k: str(v)[:100] for k, v in first_lead.items()}  # Truncate long values
+                    }
+            except Exception as parse_error:
+                fields_info = {'parse_error': str(parse_error)}
+        
         return jsonify({
-            'status_code': response.status_code,
-            'url': response.url,
-            'response_size': len(response.text),
-            'first_200_chars': response.text[:200],
-            'success': response.status_code == 200
+            'api_test': {
+                'status_code': response.status_code,
+                'url': response.url,
+                'working': response.status_code == 200,
+                'first_100_chars': response.text[:100] if response.text else 'No response'
+            },
+            'leads_test': {
+                'status_code': leads_response.status_code,
+                'working': leads_response.status_code == 200,
+                'data_info': fields_info
+            }
         })
         
     except Exception as e:
