@@ -286,8 +286,8 @@ def get_leads():
 
 @app.route('/api/export')
 def export_leads():
-    """Export leads - NO CSV LIBRARY"""
-    app.logger.info("CLEAN EXPORT: Starting...")
+    """Export leads - Proper CSV format for Excel"""
+    app.logger.info("CSV EXPORT: Starting...")
     
     try:
         # Get leads data
@@ -301,24 +301,59 @@ def export_leads():
         if not leads_data:
             return jsonify({'error': 'No leads found'}), 400
         
-        # Build as pipe-separated text file
+        # Build proper CSV with commas and quoted fields
         lines = []
-        lines.append("NCT_ID|Title|Drug|Companies|Phase|Status|Condition|Completion|FDA_Score|Priority")
         
+        # Header row with proper CSV formatting
+        headers = ["NCT ID", "Title", "Drug Name", "Companies", "Phase", "Status", "Condition", "Completion Date", "FDA Likelihood %", "Priority"]
+        lines.append(','.join(f'"{header}"' for header in headers))
+        
+        # Data rows
         for lead in leads_data:
-            line = f"{lead.get('nct_id', '')}|{lead.get('title', '')}|{lead.get('drug_name', '')}|{lead.get('companies', '')}|{lead.get('phase', '')}|{lead.get('status', '')}|{lead.get('condition', '')}|{lead.get('completion_date', '')}|{lead.get('fda_likelihood', '')}|{lead.get('priority', '')}"
-            lines.append(line)
+            # Extract and clean data
+            nct_id = str(lead.get('nct_id', ''))
+            title = str(lead.get('title', ''))
+            drug_name = str(lead.get('drug_name', ''))
+            
+            # Handle companies list - convert to string
+            companies = lead.get('companies', [])
+            if isinstance(companies, list):
+                companies_str = ', '.join(companies)
+            else:
+                companies_str = str(companies)
+            
+            phase = str(lead.get('phase', ''))
+            status = str(lead.get('status', ''))
+            condition = str(lead.get('condition', ''))
+            completion_date = str(lead.get('completion_date', ''))
+            fda_likelihood = str(lead.get('fda_likelihood', ''))
+            priority = str(lead.get('priority', ''))
+            
+            # Create CSV row with proper quoting
+            row_data = [nct_id, title, drug_name, companies_str, phase, status, condition, completion_date, fda_likelihood, priority]
+            
+            # Quote each field and escape internal quotes
+            quoted_row = []
+            for field in row_data:
+                # Escape quotes by doubling them
+                escaped_field = field.replace('"', '""')
+                quoted_row.append(f'"{escaped_field}"')
+            
+            lines.append(','.join(quoted_row))
         
-        content = "\n".join(lines)
+        # Join all lines
+        csv_content = '\n'.join(lines)
+        
+        app.logger.info(f"CSV EXPORT: Generated {len(csv_content)} characters")
         
         return Response(
-            content,
-            mimetype='text/plain',
-            headers={'Content-Disposition': 'attachment; filename=leads.txt'}
+            csv_content,
+            mimetype='text/csv',
+            headers={'Content-Disposition': 'attachment; filename=pharma_leads.csv'}
         )
         
     except Exception as e:
-        app.logger.error(f"CLEAN EXPORT ERROR: {e}")
+        app.logger.error(f"CSV EXPORT ERROR: {e}")
         return jsonify({'error': str(e)}), 500
 
 @app.route('/api/company/<company_name>')
