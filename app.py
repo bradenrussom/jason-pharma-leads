@@ -2,8 +2,9 @@ from flask import Flask, render_template, request, jsonify
 import requests
 import json
 from datetime import datetime, timedelta
-import pandas as pd
 from collections import defaultdict
+import csv
+import io
 import os
 
 app = Flask(__name__)
@@ -224,14 +225,18 @@ def export_leads():
         leads_response = get_leads()
         leads_data = json.loads(leads_response.data)
         
-        # Convert to DataFrame for easy export
-        df = pd.DataFrame(leads_data)
+        # Create CSV in memory
+        output = io.StringIO()
+        writer = csv.DictWriter(output, fieldnames=['nct_id', 'drug_name', 'companies', 'phase', 'status', 'condition', 'completion_date', 'fda_likelihood', 'priority'])
+        writer.writeheader()
         
-        # Save to CSV
-        csv_path = 'leads_export.csv'
-        df.to_csv(csv_path, index=False)
+        for lead in leads_data:
+            # Convert companies list to string
+            lead_copy = lead.copy()
+            lead_copy['companies'] = ', '.join(lead['companies'])
+            writer.writerow(lead_copy)
         
-        return jsonify({'message': 'Export successful', 'file': csv_path})
+        return jsonify({'message': 'Export successful', 'data': output.getvalue()})
     
     except Exception as e:
         return jsonify({'error': str(e)}), 500

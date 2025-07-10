@@ -1,262 +1,376 @@
-<!-- Add these sections to your existing dashboard.html -->
-
-<!-- Add this after the existing filter section -->
-<div class="row mb-4">
-    <div class="col-md-4">
-        <div class="card">
-            <div class="card-header">
-                <h6><i class="fas fa-exclamation-triangle text-warning"></i> Urgent Alerts</h6>
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Pharma Lead Finder</title>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.0/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <style>
+        .lead-card {
+            border-left: 4px solid #007bff;
+            transition: all 0.3s ease;
+        }
+        .lead-card:hover {
+            box-shadow: 0 4px 15px rgba(0,123,255,0.3);
+        }
+        .priority-high { border-left-color: #dc3545; }
+        .priority-medium { border-left-color: #ffc107; }
+        .priority-low { border-left-color: #28a745; }
+        .likelihood-score {
+            font-size: 1.2em;
+            font-weight: bold;
+        }
+        .company-tag {
+            background-color: #e9ecef;
+            padding: 2px 8px;
+            border-radius: 12px;
+            font-size: 0.8em;
+            margin: 2px;
+        }
+    </style>
+</head>
+<body>
+    <nav class="navbar navbar-expand-lg navbar-dark bg-primary">
+        <div class="container">
+            <a class="navbar-brand" href="#">
+                <i class="fas fa-pills"></i> Pharma Lead Finder
+            </a>
+            <div class="navbar-nav ms-auto">
+                <a class="nav-link" href="#" onclick="exportLeads()">
+                    <i class="fas fa-download"></i> Export
+                </a>
             </div>
-            <div class="card-body">
-                <div id="alertsContainer">
-                    <div class="text-center">
-                        <button class="btn btn-sm btn-warning" onclick="loadAlerts()">
-                            Check Urgent Leads
-                        </button>
+        </div>
+    </nav>
+
+    <div class="container mt-4">
+        <!-- Dashboard Stats -->
+        <div class="row mb-4">
+            <div class="col-md-3">
+                <div class="card bg-primary text-white">
+                    <div class="card-body">
+                        <h5 class="card-title">Total Leads</h5>
+                        <h3 id="totalLeads">-</h3>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="card bg-success text-white">
+                    <div class="card-body">
+                        <h5 class="card-title">High Priority</h5>
+                        <h3 id="highPriority">-</h3>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="card bg-warning text-white">
+                    <div class="card-body">
+                        <h5 class="card-title">6-Month Pipeline</h5>
+                        <h3 id="pipelineCount">-</h3>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="card bg-info text-white">
+                    <div class="card-body">
+                        <h5 class="card-title">Avg. FDA Score</h5>
+                        <h3 id="avgScore">-</h3>
                     </div>
                 </div>
             </div>
         </div>
-    </div>
-    
-    <div class="col-md-4">
-        <div class="card">
-            <div class="card-header">
-                <h6><i class="fas fa-chart-pie text-info"></i> Market Analysis</h6>
-            </div>
-            <div class="card-body">
-                <div id="marketAnalysis">
-                    <div class="text-center">
-                        <button class="btn btn-sm btn-info" onclick="loadMarketAnalysis()">
-                            View Market Trends
-                        </button>
+
+        <!-- Filters -->
+        <div class="row mb-4">
+            <div class="col-md-12">
+                <div class="card">
+                    <div class="card-header">
+                        <h5>Filters</h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="row">
+                            <div class="col-md-3">
+                                <select class="form-select" id="phaseFilter">
+                                    <option value="">All Phases</option>
+                                    <option value="Phase 3">Phase 3</option>
+                                    <option value="Phase 2/Phase 3">Phase 2/3</option>
+                                    <option value="Phase 4">Phase 4</option>
+                                </select>
+                            </div>
+                            <div class="col-md-3">
+                                <select class="form-select" id="priorityFilter">
+                                    <option value="">All Priorities</option>
+                                    <option value="High">High</option>
+                                    <option value="Medium">Medium</option>
+                                    <option value="Low">Low</option>
+                                </select>
+                            </div>
+                            <div class="col-md-3">
+                                <input type="text" class="form-control" id="companyFilter" placeholder="Company name...">
+                            </div>
+                            <div class="col-md-3">
+                                <button class="btn btn-primary" onclick="loadLeads()">
+                                    <i class="fas fa-search"></i> Search
+                                </button>
+                            </div>
+                        </div>
                     </div>
                 </div>
             </div>
         </div>
-    </div>
-    
-    <div class="col-md-4">
-        <div class="card">
-            <div class="card-header">
-                <h6><i class="fas fa-building text-success"></i> Company Sizes</h6>
-            </div>
-            <div class="card-body">
-                <div id="companySizeAnalysis">
-                    <div class="text-center">
-                        <button class="btn btn-sm btn-success" onclick="loadCompanySizeAnalysis()">
-                            Analyze Companies
-                        </button>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
-</div>
 
-<!-- Add this modal for contact suggestions -->
-<div class="modal fade" id="contactModal" tabindex="-1">
-    <div class="modal-dialog modal-lg">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h5 class="modal-title">Sales Strategy & Contacts</h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-            </div>
-            <div class="modal-body" id="contactSuggestions"></div>
-        </div>
-    </div>
-</div>
-
-<!-- Add these JavaScript functions to your existing script section -->
-<script>
-// Add these functions to your existing JavaScript
-
-async function loadAlerts() {
-    try {
-        const response = await fetch('/api/alerts');
-        const alerts = await response.json();
-        
-        const container = document.getElementById('alertsContainer');
-        
-        if (response.ok && alerts.length > 0) {
-            container.innerHTML = alerts.map(alert => `
-                <div class="alert alert-warning alert-sm p-2 mb-2">
-                    <small><strong>${alert.company}</strong><br>
-                    ${alert.message}<br>
-                    <em>Action: ${alert.action}</em></small>
-                </div>
-            `).join('');
-        } else {
-            container.innerHTML = '<small class="text-muted">No urgent alerts</small>';
-        }
-    } catch (error) {
-        console.error('Error loading alerts:', error);
-    }
-}
-
-async function loadMarketAnalysis() {
-    try {
-        const response = await fetch('/api/market-analysis');
-        const analysis = await response.json();
-        
-        const container = document.getElementById('marketAnalysis');
-        
-        if (response.ok && analysis.length > 0) {
-            container.innerHTML = analysis.slice(0, 3).map(area => `
-                <div class="mb-2">
-                    <small><strong>${area.therapeutic_area}</strong><br>
-                    ${area.trial_count} trials, ${area.company_count} companies<br>
-                    <span class="badge badge-sm bg-${area.market_opportunity === 'High' ? 'success' : 'warning'}">${area.market_opportunity}</span></small>
-                </div>
-            `).join('');
-        } else {
-            container.innerHTML = '<small class="text-muted">No data available</small>';
-        }
-    } catch (error) {
-        console.error('Error loading market analysis:', error);
-    }
-}
-
-async function loadCompanySizeAnalysis() {
-    try {
-        const response = await fetch('/api/company-size-analysis');
-        const analysis = await response.json();
-        
-        const container = document.getElementById('companySizeAnalysis');
-        
-        if (response.ok) {
-            container.innerHTML = `
-                <small>
-                    <strong>Large Pharma:</strong> ${analysis.summary.large_pharma_count}<br>
-                    <strong>Mid-size:</strong> ${analysis.summary.mid_size_count}<br>
-                    <strong>Small Biotech:</strong> ${analysis.summary.small_biotech_count}<br>
-                    <strong>Total:</strong> ${analysis.summary.total_companies}
-                </small>
-            `;
-        } else {
-            container.innerHTML = '<small class="text-muted">No data available</small>';
-        }
-    } catch (error) {
-        console.error('Error loading company analysis:', error);
-    }
-}
-
-async function viewContactSuggestions(companyName) {
-    try {
-        const response = await fetch(`/api/contact-suggestions/${encodeURIComponent(companyName)}`);
-        const data = await response.json();
-        
-        if (response.ok) {
-            displayContactSuggestions(data);
-        } else {
-            alert('Error loading contact suggestions: ' + data.error);
-        }
-    } catch (error) {
-        alert('Error loading contact suggestions: ' + error.message);
-    }
-}
-
-function displayContactSuggestions(data) {
-    const modal = document.getElementById('contactModal');
-    const container = document.getElementById('contactSuggestions');
-    
-    container.innerHTML = `
+        <!-- Leads Display -->
         <div class="row">
-            <div class="col-md-6">
-                <h6>Company Profile</h6>
-                <p><strong>Size:</strong> ${data.profile.size}</p>
-                <p><strong>Priority:</strong> <span class="badge bg-${data.profile.priority === 'High' ? 'danger' : 'warning'}">${data.profile.priority}</span></p>
-                <p><strong>Urgency:</strong> ${data.profile.urgency}</p>
-                
-                <h6>Key Contacts</h6>
-                ${data.key_contacts.map(contact => `
-                    <div class="mb-2">
-                        <strong>${contact.role}</strong> <span class="badge bg-${contact.priority === 'High' ? 'danger' : 'warning'}">${contact.priority}</span><br>
-                        <small class="text-muted">${contact.message}</small>
+            <div class="col-md-12">
+                <div class="card">
+                    <div class="card-header d-flex justify-content-between">
+                        <h5>Sales Leads</h5>
+                        <div>
+                            <button class="btn btn-sm btn-outline-primary" onclick="loadLeads()">
+                                <i class="fas fa-sync"></i> Refresh
+                            </button>
+                        </div>
                     </div>
-                `).join('')}
+                    <div class="card-body">
+                        <div id="loadingSpinner" class="text-center d-none">
+                            <div class="spinner-border" role="status">
+                                <span class="visually-hidden">Loading...</span>
+                            </div>
+                        </div>
+                        <div id="leadsContainer" class="row"></div>
+                    </div>
+                </div>
             </div>
+        </div>
+    </div>
+
+    <!-- Company Details Modal -->
+    <div class="modal fade" id="companyModal" tabindex="-1">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Company Details</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body" id="companyDetails"></div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.0/js/bootstrap.bundle.min.js"></script>
+    <script>
+        let currentLeads = [];
+
+        async function loadLeads() {
+            const loadingSpinner = document.getElementById('loadingSpinner');
+            const leadsContainer = document.getElementById('leadsContainer');
             
-            <div class="col-md-6">
-                <h6>Outreach Strategy</h6>
-                <p><strong>Timing:</strong> ${data.outreach_strategy.timing}</p>
-                <p><strong>Value Prop:</strong> ${data.outreach_strategy.value_proposition}</p>
+            loadingSpinner.classList.remove('d-none');
+            leadsContainer.innerHTML = '';
+            
+            try {
+                const response = await fetch('/api/leads');
+                const leads = await response.json();
                 
-                <h6>Pain Points to Address</h6>
-                <ul class="list-unstyled">
-                    ${data.outreach_strategy.pain_points.map(point => `<li>• ${point}</li>`).join('')}
-                </ul>
+                if (response.ok) {
+                    currentLeads = leads;
+                    displayLeads(leads);
+                    updateStats(leads);
+                } else {
+                    leadsContainer.innerHTML = '<div class="alert alert-danger">Error loading leads: ' + leads.error + '</div>';
+                }
+            } catch (error) {
+                leadsContainer.innerHTML = '<div class="alert alert-danger">Error loading leads: ' + error.message + '</div>';
+            } finally {
+                loadingSpinner.classList.add('d-none');
+            }
+        }
+
+        function displayLeads(leads) {
+            const container = document.getElementById('leadsContainer');
+            container.innerHTML = '';
+            
+            leads.forEach(lead => {
+                const card = createLeadCard(lead);
+                container.appendChild(card);
+            });
+        }
+
+        function createLeadCard(lead) {
+            const col = document.createElement('div');
+            col.className = 'col-md-6 mb-3';
+            
+            const companies = lead.companies.map(company => 
+                `<span class="company-tag">${company}</span>`
+            ).join('');
+            
+            col.innerHTML = `
+                <div class="card lead-card priority-${lead.priority.toLowerCase()}">
+                    <div class="card-body">
+                        <div class="d-flex justify-content-between align-items-start">
+                            <h6 class="card-title">${lead.drug_name || 'Unknown Drug'}</h6>
+                            <span class="badge bg-${lead.priority === 'High' ? 'danger' : lead.priority === 'Medium' ? 'warning' : 'success'}">
+                                ${lead.priority}
+                            </span>
+                        </div>
+                        <div class="mb-2">${companies}</div>
+                        <p class="card-text small text-muted">${lead.condition || 'Condition not specified'}</p>
+                        <div class="row">
+                            <div class="col-6">
+                                <small class="text-muted">Phase:</small><br>
+                                <strong>${lead.phase || 'Unknown'}</strong>
+                            </div>
+                            <div class="col-6">
+                                <small class="text-muted">FDA Likelihood:</small><br>
+                                <span class="likelihood-score text-primary">${lead.fda_likelihood}%</span>
+                            </div>
+                        </div>
+                        <div class="mt-2">
+                            <small class="text-muted">Status: ${lead.status}</small><br>
+                            <small class="text-muted">Completion: ${lead.completion_date || 'TBD'}</small>
+                        </div>
+                        <div class="mt-2">
+                            <button class="btn btn-sm btn-outline-primary" onclick="viewCompanyDetails('${lead.companies[0]}')">
+                                <i class="fas fa-eye"></i> View Details
+                            </button>
+                            <a href="https://clinicaltrials.gov/ct2/show/${lead.nct_id}" target="_blank" class="btn btn-sm btn-outline-secondary">
+                                <i class="fas fa-external-link-alt"></i> ClinicalTrials.gov
+                            </a>
+                        </div>
+                    </div>
+                </div>
+            `;
+            
+            return col;
+        }
+
+        function updateStats(leads) {
+            document.getElementById('totalLeads').textContent = leads.length;
+            document.getElementById('highPriority').textContent = leads.filter(l => l.priority === 'High').length;
+            
+            const avgScore = leads.reduce((sum, lead) => sum + lead.fda_likelihood, 0) / leads.length;
+            document.getElementById('avgScore').textContent = Math.round(avgScore) + '%';
+            
+            // Load pipeline data
+            loadPipelineStats();
+        }
+
+        async function loadPipelineStats() {
+            try {
+                const response = await fetch('/api/pipeline');
+                const pipeline = await response.json();
                 
-                <h6>Talking Points</h6>
-                <ul class="list-unstyled">
-                    ${data.talking_points.map(point => `<li>• ${point}</li>`).join('')}
-                </ul>
-            </div>
-        </div>
-    `;
-    
-    new bootstrap.Modal(modal).show();
-}
+                if (response.ok) {
+                    document.getElementById('pipelineCount').textContent = pipeline.length;
+                }
+            } catch (error) {
+                console.error('Error loading pipeline stats:', error);
+            }
+        }
 
-// Update the existing createLeadCard function to include contact suggestions button
-function createLeadCard(lead) {
-    const col = document.createElement('div');
-    col.className = 'col-md-6 mb-3';
-    
-    const companies = lead.companies.map(company => 
-        `<span class="company-tag">${company}</span>`
-    ).join('');
-    
-    col.innerHTML = `
-        <div class="card lead-card priority-${lead.priority.toLowerCase()}">
-            <div class="card-body">
-                <div class="d-flex justify-content-between align-items-start">
-                    <h6 class="card-title">${lead.drug_name || 'Unknown Drug'}</h6>
-                    <span class="badge bg-${lead.priority === 'High' ? 'danger' : lead.priority === 'Medium' ? 'warning' : 'success'}">
-                        ${lead.priority}
-                    </span>
-                </div>
-                <div class="mb-2">${companies}</div>
-                <p class="card-text small text-muted">${lead.condition || 'Condition not specified'}</p>
-                <div class="row">
-                    <div class="col-6">
-                        <small class="text-muted">Phase:</small><br>
-                        <strong>${lead.phase || 'Unknown'}</strong>
-                    </div>
-                    <div class="col-6">
-                        <small class="text-muted">FDA Likelihood:</small><br>
-                        <span class="likelihood-score text-primary">${lead.fda_likelihood}%</span>
-                    </div>
-                </div>
-                <div class="mt-2">
-                    <small class="text-muted">Status: ${lead.status}</small><br>
-                    <small class="text-muted">Completion: ${lead.completion_date || 'TBD'}</small>
-                </div>
-                <div class="mt-2">
-                    <button class="btn btn-sm btn-outline-primary" onclick="viewCompanyDetails('${lead.companies[0]}')">
-                        <i class="fas fa-eye"></i> Pipeline
-                    </button>
-                    <button class="btn btn-sm btn-outline-success" onclick="viewContactSuggestions('${lead.companies[0]}')">
-                        <i class="fas fa-phone"></i> Contacts
-                    </button>
-                    <a href="https://clinicaltrials.gov/ct2/show/${lead.nct_id}" target="_blank" class="btn btn-sm btn-outline-secondary">
-                        <i class="fas fa-external-link-alt"></i> Source
-                    </a>
-                </div>
-            </div>
-        </div>
-    `;
-    
-    return col;
-}
+        async function viewCompanyDetails(companyName) {
+            try {
+                const response = await fetch(`/api/company/${encodeURIComponent(companyName)}`);
+                const data = await response.json();
+                
+                if (response.ok) {
+                    displayCompanyDetails(data);
+                } else {
+                    alert('Error loading company details: ' + data.error);
+                }
+            } catch (error) {
+                alert('Error loading company details: ' + error.message);
+            }
+        }
 
-// Auto-load enhanced features when page loads
-window.addEventListener('load', function() {
-    loadLeads();
-    setTimeout(() => {
-        loadAlerts();
-        loadMarketAnalysis();
-        loadCompanySizeAnalysis();
-    }, 2000); // Load after main data
-});
-</script>
+        function displayCompanyDetails(data) {
+            const modal = document.getElementById('companyModal');
+            const detailsContainer = document.getElementById('companyDetails');
+            
+            detailsContainer.innerHTML = `
+                <h6>${data.company}</h6>
+                <p><strong>Total Trials:</strong> ${data.total_trials}</p>
+                <div class="table-responsive">
+                    <table class="table table-sm">
+                        <thead>
+                            <tr>
+                                <th>Drug</th>
+                                <th>Phase</th>
+                                <th>Status</th>
+                                <th>FDA Score</th>
+                                <th>Completion</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${data.trials.map(trial => `
+                                <tr>
+                                    <td>${trial.drug_name || 'Unknown'}</td>
+                                    <td>${trial.phase || 'Unknown'}</td>
+                                    <td>${trial.status}</td>
+                                    <td>${trial.fda_likelihood}%</td>
+                                    <td>${trial.completion_date || 'TBD'}</td>
+                                </tr>
+                            `).join('')}
+                        </tbody>
+                    </table>
+                </div>
+            `;
+            
+            new bootstrap.Modal(modal).show();
+        }
+
+        async function exportLeads() {
+            try {
+                const response = await fetch('/api/export');
+                
+                if (response.ok) {
+                    // Create download link for CSV file
+                    const blob = await response.blob();
+                    const url = window.URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = 'pharma_leads.csv';
+                    document.body.appendChild(a);
+                    a.click();
+                    document.body.removeChild(a);
+                    window.URL.revokeObjectURL(url);
+                    
+                    alert('Leads exported successfully!');
+                } else {
+                    const error = await response.json();
+                    alert('Error exporting leads: ' + error.error);
+                }
+            } catch (error) {
+                alert('Error exporting leads: ' + error.message);
+            }
+        }
+
+        // Filter functionality
+        document.getElementById('phaseFilter').addEventListener('change', filterLeads);
+        document.getElementById('priorityFilter').addEventListener('change', filterLeads);
+        document.getElementById('companyFilter').addEventListener('input', filterLeads);
+
+        function filterLeads() {
+            const phaseFilter = document.getElementById('phaseFilter').value;
+            const priorityFilter = document.getElementById('priorityFilter').value;
+            const companyFilter = document.getElementById('companyFilter').value.toLowerCase();
+            
+            let filteredLeads = currentLeads.filter(lead => {
+                const matchesPhase = !phaseFilter || lead.phase.includes(phaseFilter);
+                const matchesPriority = !priorityFilter || lead.priority === priorityFilter;
+                const matchesCompany = !companyFilter || lead.companies.some(company => 
+                    company.toLowerCase().includes(companyFilter)
+                );
+                
+                return matchesPhase && matchesPriority && matchesCompany;
+            });
+            
+            displayLeads(filteredLeads);
+        }
+
+        // Load leads on page load
+        window.addEventListener('load', loadLeads);
+    </script>
+</body>
+</html>
