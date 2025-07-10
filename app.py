@@ -119,7 +119,7 @@ class LeadScorer:
         
         return list(set(companies))  # Remove duplicates
 
-# Initialize API client
+# Initialize API client - v2.0 with export fix testing
 ct_api = ClinicalTrialsAPI()
 
 @app.route('/api/debug')
@@ -471,5 +471,5 @@ def export_leads():
         return jsonify({'error': str(e)}), 500
 
 if __name__ == '__main__':
-    # For local development
+    # For local development - Updated to trigger GitHub detection
     app.run(debug=True, host='0.0.0.0', port=int(os.environ.get('PORT', 5000)))
