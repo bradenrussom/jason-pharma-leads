@@ -253,29 +253,77 @@ def get_leads():
 
 @app.route('/api/company/<company_name>')
 def get_company_details(company_name):
-    """Get detailed information about a specific company"""
+    """Get detailed information about a specific company using API v2.0"""
     try:
-        # Search for all trials by this company
-        expr = f'AREA[Sponsor]{company_name}'
-        trials_data = ct_api.search_trials(expr=expr, max_rank=200)
+        app.logger.info(f"Searching for company: {company_name}")
         
-        if not trials_data or 'StudyFieldsResponse' not in trials_data:
+        # Search for all trials by this company using API v2.0
+        params = {
+            'query.term': f'AREA[LeadSponsorName]{company_name}',
+            'pageSize': 50,
+            'format': 'json'
+        }
+        
+        response = requests.get("https://clinicaltrials.gov/api/v2/studies", params=params, timeout=30)
+        
+        if response.status_code != 200:
+            app.logger.error(f"API request failed: {response.status_code}")
+            return jsonify({'error': 'API request failed'}), 500
+        
+        trials_data = response.json()
+        studies = trials_data.get('studies', [])
+        
+        app.logger.info(f"Found {len(studies)} studies for {company_name}")
+        
+        if not studies:
             return jsonify({'error': 'No data available'}), 404
         
         company_trials = []
-        for trial in trials_data['StudyFieldsResponse']['StudyFields']:
-            trial_info = {
-                'nct_id': trial.get('NCTId', [''])[0],
-                'title': trial.get('BriefTitle', [''])[0],
-                'phase': trial.get('Phase', [''])[0],
-                'status': trial.get('StudyStatus', [''])[0],
-                'drug_name': trial.get('InterventionName', [''])[0],
-                'condition': trial.get('Condition', [''])[0],
-                'start_date': trial.get('StartDate', [''])[0],
-                'completion_date': trial.get('CompletionDate', [''])[0],
-                'fda_likelihood': LeadScorer.calculate_fda_approval_likelihood(trial)
-            }
-            company_trials.append(trial_info)
+        for study in studies:
+            try:
+                protocol_section = study.get('protocolSection', {})
+                identification = protocol_section.get('identificationModule', {})
+                status_module = protocol_section.get('statusModule', {})
+                design_module = protocol_section.get('designModule', {})
+                conditions_module = protocol_section.get('conditionsModule', {})
+                interventions_module = protocol_section.get('armsInterventionsModule', {})
+                
+                # Get intervention names
+                interventions = interventions_module.get('interventions', [])
+                intervention_names = [interv.get('name', '') for interv in interventions]
+                drug_name = ', '.join(intervention_names) if intervention_names else 'Unknown'
+                
+                # Get conditions
+                conditions = conditions_module.get('conditions', [])
+                condition = ', '.join(conditions) if conditions else 'Unknown'
+                
+                # Get phases
+                phases = design_module.get('phases', [])
+                phase = ', '.join(phases) if phases else 'Unknown'
+                
+                # Get dates
+                start_date_struct = status_module.get('startDateStruct', {})
+                start_date = start_date_struct.get('date', 'Unknown')
+                
+                completion_date_struct = status_module.get('completionDateStruct', {})
+                completion_date = completion_date_struct.get('date', 'Unknown')
+                
+                trial_info = {
+                    'nct_id': identification.get('nctId', 'Unknown'),
+                    'title': identification.get('briefTitle', 'Unknown'),
+                    'phase': phase,
+                    'status': status_module.get('overallStatus', 'Unknown'),
+                    'drug_name': drug_name,
+                    'condition': condition,
+                    'start_date': start_date,
+                    'completion_date': completion_date,
+                    'fda_likelihood': LeadScorer.calculate_fda_approval_likelihood(study)
+                }
+                company_trials.append(trial_info)
+                
+            except Exception as trial_error:
+                app.logger.error(f"Error processing trial: {trial_error}")
+                continue
         
         return jsonify({
             'company': company_name,
@@ -284,40 +332,93 @@ def get_company_details(company_name):
         })
     
     except Exception as e:
+        app.logger.error(f"Error in get_company_details: {e}")
+        import traceback
+        app.logger.error(f"Full traceback: {traceback.format_exc()}")
         return jsonify({'error': str(e)}), 500
 
 @app.route('/api/pipeline')
 def get_pipeline_analysis():
-    """Get pipeline analysis for market timing"""
+    """Get pipeline analysis for market timing using API v2.0"""
     try:
-        # Get trials completing in next 6 months
-        end_date = (datetime.now() + timedelta(days=180)).strftime('%m/%d/%Y')
-        current_date = datetime.now().strftime('%m/%d/%Y')
+        app.logger.info("Getting pipeline analysis...")
         
-        expr = f'AREA[CompletionDate]RANGE[{current_date}, {end_date}] AND (AREA[Phase]Phase 3 OR AREA[Phase]Phase 2/Phase 3)'
-        trials_data = ct_api.search_trials(expr=expr, max_rank=500)
+        # Get Phase 3 trials (already filtered by phase in main search)
+        params = {
+            'query.term': 'AREA[Phase]PHASE3',
+            'pageSize': 100,
+            'format': 'json'
+        }
         
-        if not trials_data or 'StudyFieldsResponse' not in trials_data:
-            return jsonify({'error': 'No data available'}), 500
+        response = requests.get("https://clinicaltrials.gov/api/v2/studies", params=params, timeout=30)
+        
+        if response.status_code != 200:
+            return jsonify({'error': 'API request failed'}), 500
+        
+        trials_data = response.json()
+        studies = trials_data.get('studies', [])
         
         pipeline = []
-        for trial in trials_data['StudyFieldsResponse']['StudyFields']:
-            companies = LeadScorer.extract_company_info(trial)
-            if companies:
-                pipeline_item = {
-                    'companies': companies,
-                    'drug_name': trial.get('InterventionName', [''])[0],
-                    'phase': trial.get('Phase', [''])[0],
-                    'completion_date': trial.get('CompletionDate', [''])[0],
-                    'condition': trial.get('Condition', [''])[0],
-                    'urgency': 'High',  # Within 6 months
-                    'fda_likelihood': LeadScorer.calculate_fda_approval_likelihood(trial)
-                }
-                pipeline.append(pipeline_item)
+        for study in studies:
+            try:
+                protocol_section = study.get('protocolSection', {})
+                status_module = protocol_section.get('statusModule', {})
+                
+                # Check if completing within 6 months
+                completion_date_struct = status_module.get('completionDateStruct', {})
+                completion_date = completion_date_struct.get('date', '')
+                
+                within_6_months = False
+                if completion_date:
+                    try:
+                        comp_date = datetime.strptime(completion_date, '%Y-%m-%d')
+                        days_to_completion = (comp_date - datetime.now()).days
+                        within_6_months = days_to_completion <= 180
+                    except:
+                        pass
+                
+                if within_6_months:
+                    companies = LeadScorer.extract_company_info(study)
+                    if companies:
+                        # Get other study details
+                        identification = protocol_section.get('identificationModule', {})
+                        design_module = protocol_section.get('designModule', {})
+                        conditions_module = protocol_section.get('conditionsModule', {})
+                        interventions_module = protocol_section.get('armsInterventionsModule', {})
+                        
+                        # Get intervention names
+                        interventions = interventions_module.get('interventions', [])
+                        intervention_names = [interv.get('name', '') for interv in interventions]
+                        drug_name = ', '.join(intervention_names) if intervention_names else 'Unknown'
+                        
+                        # Get conditions
+                        conditions = conditions_module.get('conditions', [])
+                        condition = ', '.join(conditions) if conditions else 'Unknown'
+                        
+                        # Get phases
+                        phases = design_module.get('phases', [])
+                        phase = ', '.join(phases) if phases else 'Unknown'
+                        
+                        pipeline_item = {
+                            'companies': companies,
+                            'drug_name': drug_name,
+                            'phase': phase,
+                            'completion_date': completion_date,
+                            'condition': condition,
+                            'urgency': 'High',  # Within 6 months
+                            'fda_likelihood': LeadScorer.calculate_fda_approval_likelihood(study)
+                        }
+                        pipeline.append(pipeline_item)
+                        
+            except Exception as study_error:
+                app.logger.error(f"Error processing pipeline study: {study_error}")
+                continue
         
+        app.logger.info(f"Found {len(pipeline)} pipeline items")
         return jsonify(pipeline)
     
     except Exception as e:
+        app.logger.error(f"Error in get_pipeline_analysis: {e}")
         return jsonify({'error': str(e)}), 500
 
 @app.route('/api/export')
