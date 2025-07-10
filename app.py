@@ -1,13 +1,11 @@
-# FORCE DEPLOYMENT - Version 4.0 - Export Fix Test
-from flask import Flask, render_template, request, jsonify, Response
+from flask import Flask, render_template, request, jsonify
 import requests
 import json
 from datetime import datetime, timedelta
 from collections import defaultdict
+import csv
 import io
 import os
-import sys
-import logging
 
 app = Flask(__name__)
 
@@ -362,7 +360,274 @@ def get_company_details(company_name):
         app.logger.error(f"Error in get_company_details: {e}")
         import traceback
         app.logger.error(f"Full traceback: {traceback.format_exc()}")
+@app.route('/api/leads')
+def get_leads():
+    """Get scored leads from clinical trials data using API v2.0"""
+    app.logger.info("Starting get_leads function...")
+    
+    try:
+        # Get late phase trials
+        app.logger.info("Calling ct_api.get_late_phase_trials()...")
+        trials_data = ct_api.get_late_phase_trials()
+        
+        app.logger.info(f"API response type: {type(trials_data)}")
+        
+        if not trials_data:
+            app.logger.error("No trials_data received")
+            return jsonify({'error': 'No response from ClinicalTrials.gov API'}), 500
+        
+        app.logger.info(f"trials_data keys: {trials_data.keys() if isinstance(trials_data, dict) else 'Not a dict'}")
+        
+        # New API v2.0 structure
+        studies = trials_data.get('studies', [])
+        app.logger.info(f"Found {len(studies)} studies")
+        
+        if not studies:
+            app.logger.error("No studies found in response")
+            return jsonify({'error': 'No studies found', 'response_sample': str(trials_data)[:500]}), 500
+        
+        leads = []
+        for i, study in enumerate(studies):
+            try:
+                # Calculate FDA approval likelihood
+                likelihood = LeadScorer.calculate_fda_approval_likelihood(study)
+                
+                # Extract company info
+                companies = LeadScorer.extract_company_info(study)
+                
+                if companies and likelihood > 30:  # Only high-potential leads
+                    # Extract data from new API structure
+                    protocol_section = study.get('protocolSection', {})
+                    identification = protocol_section.get('identificationModule', {})
+                    status_module = protocol_section.get('statusModule', {})
+                    design_module = protocol_section.get('designModule', {})
+                    conditions_module = protocol_section.get('conditionsModule', {})
+                    interventions_module = protocol_section.get('armsInterventionsModule', {})
+                    
+                    # Get intervention names
+                    interventions = interventions_module.get('interventions', [])
+                    intervention_names = [interv.get('name', '') for interv in interventions]
+                    drug_name = ', '.join(intervention_names) if intervention_names else 'Unknown'
+                    
+                    # Get conditions
+                    conditions = conditions_module.get('conditions', [])
+                    condition = ', '.join(conditions) if conditions else 'Unknown'
+                    
+                    # Get completion date
+                    completion_date_struct = status_module.get('completionDateStruct', {})
+                    completion_date = completion_date_struct.get('date', 'TBD')
+                    
+                    # Get phases
+                    phases = design_module.get('phases', [])
+                    phase = ', '.join(phases) if phases else 'Unknown'
+                    
+                    lead = {
+                        'nct_id': identification.get('nctId', 'Unknown'),
+                        'title': identification.get('briefTitle', 'Unknown'),
+                        'phase': phase,
+                        'status': status_module.get('overallStatus', 'Unknown'),
+                        'companies': companies,
+                        'drug_name': drug_name,
+                        'condition': condition,
+                        'completion_date': completion_date,
+                        'fda_likelihood': likelihood,
+                        'priority': 'High' if likelihood > 70 else 'Medium' if likelihood > 50 else 'Low'
+                    }
+                    leads.append(lead)
+                    
+                if len(leads) >= 50:  # Limit to prevent timeout
+                    break
+                        
+            except Exception as trial_error:
+                app.logger.error(f"Error processing study {i}: {trial_error}")
+                continue
+        
+        app.logger.info(f"Generated {len(leads)} leads")
+        
+        # Sort by FDA likelihood (highest first)
+        leads.sort(key=lambda x: x['fda_likelihood'], reverse=True)
+        
+        return jsonify(leads)
+    
+    except Exception as e:
+        app.logger.error(f"Error in get_leads: {e}")
+        import traceback
+        app.logger.error(f"Full traceback: {traceback.format_exc()}")
+        return jsonify({'error': str(e), 'error_type': type(e).__name__}), 500
+
+@app.route('/api/company/<company_name>')
+def get_company_details(company_name):
+    """Get detailed information about a specific company using API v2.0"""
+    try:
+        app.logger.info(f"Searching for company: {company_name}")
+        
+        # Search for all trials by this company using API v2.0
+        params = {
+            'query.term': f'AREA[LeadSponsorName]{company_name}',
+            'pageSize': 50,
+            'format': 'json'
+        }
+        
+        response = requests.get("https://clinicaltrials.gov/api/v2/studies", params=params, timeout=30)
+        
+        if response.status_code != 200:
+            app.logger.error(f"API request failed: {response.status_code}")
+            return jsonify({'error': 'API request failed'}), 500
+        
+        trials_data = response.json()
+        studies = trials_data.get('studies', [])
+        
+        app.logger.info(f"Found {len(studies)} studies for {company_name}")
+        
+        if not studies:
+            return jsonify({'error': 'No data available'}), 404
+        
+        company_trials = []
+        for study in studies:
+            try:
+                protocol_section = study.get('protocolSection', {})
+                identification = protocol_section.get('identificationModule', {})
+                status_module = protocol_section.get('statusModule', {})
+                design_module = protocol_section.get('designModule', {})
+                conditions_module = protocol_section.get('conditionsModule', {})
+                interventions_module = protocol_section.get('armsInterventionsModule', {})
+                
+                # Get intervention names
+                interventions = interventions_module.get('interventions', [])
+                intervention_names = [interv.get('name', '') for interv in interventions]
+                drug_name = ', '.join(intervention_names) if intervention_names else 'Unknown'
+                
+                # Get conditions
+                conditions = conditions_module.get('conditions', [])
+                condition = ', '.join(conditions) if conditions else 'Unknown'
+                
+                # Get phases
+                phases = design_module.get('phases', [])
+                phase = ', '.join(phases) if phases else 'Unknown'
+                
+                # Get dates
+                start_date_struct = status_module.get('startDateStruct', {})
+                start_date = start_date_struct.get('date', 'Unknown')
+                
+                completion_date_struct = status_module.get('completionDateStruct', {})
+                completion_date = completion_date_struct.get('date', 'Unknown')
+                
+                trial_info = {
+                    'nct_id': identification.get('nctId', 'Unknown'),
+                    'title': identification.get('briefTitle', 'Unknown'),
+                    'phase': phase,
+                    'status': status_module.get('overallStatus', 'Unknown'),
+                    'drug_name': drug_name,
+                    'condition': condition,
+                    'start_date': start_date,
+                    'completion_date': completion_date,
+                    'fda_likelihood': LeadScorer.calculate_fda_approval_likelihood(study)
+                }
+                company_trials.append(trial_info)
+                
+            except Exception as trial_error:
+                app.logger.error(f"Error processing trial: {trial_error}")
+                continue
+        
+        return jsonify({
+            'company': company_name,
+            'total_trials': len(company_trials),
+            'trials': company_trials
+        })
+    
+    except Exception as e:
+        app.logger.error(f"Error in get_company_details: {e}")
+        import traceback
+        app.logger.error(f"Full traceback: {traceback.format_exc()}")
         return jsonify({'error': str(e)}), 500
+
+@app.route('/api/pipeline')
+def get_pipeline_analysis():
+    """Get pipeline analysis for market timing using API v2.0"""
+    try:
+        app.logger.info("Getting pipeline analysis...")
+        
+        # Get Phase 3 trials (already filtered by phase in main search)
+        params = {
+            'query.term': 'AREA[Phase]PHASE3',
+            'pageSize': 100,
+            'format': 'json'
+        }
+        
+        response = requests.get("https://clinicaltrials.gov/api/v2/studies", params=params, timeout=30)
+        
+        if response.status_code != 200:
+            return jsonify({'error': 'API request failed'}), 500
+        
+        trials_data = response.json()
+        studies = trials_data.get('studies', [])
+        
+        pipeline = []
+        for study in studies:
+            try:
+                protocol_section = study.get('protocolSection', {})
+                status_module = protocol_section.get('statusModule', {})
+                
+                # Check if completing within 6 months
+                completion_date_struct = status_module.get('completionDateStruct', {})
+                completion_date = completion_date_struct.get('date', '')
+                
+                within_6_months = False
+                if completion_date:
+                    try:
+                        comp_date = datetime.strptime(completion_date, '%Y-%m-%d')
+                        days_to_completion = (comp_date - datetime.now()).days
+                        within_6_months = days_to_completion <= 180
+                    except:
+                        pass
+                
+                if within_6_months:
+                    companies = LeadScorer.extract_company_info(study)
+                    if companies:
+                        # Get other study details
+                        identification = protocol_section.get('identificationModule', {})
+                        design_module = protocol_section.get('designModule', {})
+                        conditions_module = protocol_section.get('conditionsModule', {})
+                        interventions_module = protocol_section.get('armsInterventionsModule', {})
+                        
+                        # Get intervention names
+                        interventions = interventions_module.get('interventions', [])
+                        intervention_names = [interv.get('name', '') for interv in interventions]
+                        drug_name = ', '.join(intervention_names) if intervention_names else 'Unknown'
+                        
+                        # Get conditions
+                        conditions = conditions_module.get('conditions', [])
+                        condition = ', '.join(conditions) if conditions else 'Unknown'
+                        
+                        # Get phases
+                        phases = design_module.get('phases', [])
+                        phase = ', '.join(phases) if phases else 'Unknown'
+                        
+                        pipeline_item = {
+                            'companies': companies,
+                            'drug_name': drug_name,
+                            'phase': phase,
+                            'completion_date': completion_date,
+                            'condition': condition,
+                            'urgency': 'High',  # Within 6 months
+                            'fda_likelihood': LeadScorer.calculate_fda_approval_likelihood(study)
+                        }
+                        pipeline.append(pipeline_item)
+                        
+            except Exception as study_error:
+                app.logger.error(f"Error processing pipeline study: {study_error}")
+                continue
+        
+        app.logger.info(f"Found {len(pipeline)} pipeline items")
+        return jsonify(pipeline)
+    
+    except Exception as e:
+        app.logger.error(f"Error in get_pipeline_analysis: {e}")
+        return jsonify({'error': str(e)}), 500
+
+if __name__ == '__main__':
+    # For local development - Updated to trigger GitHub detection
+    app.run(debug=True, host='0.0.0.0', port=int(os.environ.get('PORT', 5000)))
 
 @app.route('/api/pipeline')
 def get_pipeline_analysis():
