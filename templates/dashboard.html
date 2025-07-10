@@ -7,12 +7,17 @@
     <link href="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.0/css/bootstrap.min.css" rel="stylesheet">
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
     <style>
+        body {
+            background-color: #f8f9fa;
+            color: #343a40;
+        }
         .lead-card {
-            border-left: 4px solid #007bff;
+            border-left: 4px solid #6c757d;
             transition: all 0.3s ease;
+            background-color: white;
         }
         .lead-card:hover {
-            box-shadow: 0 4px 15px rgba(0,123,255,0.3);
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
         }
         .priority-high { border-left-color: #dc3545; }
         .priority-medium { border-left-color: #ffc107; }
@@ -20,6 +25,7 @@
         .likelihood-score {
             font-size: 1.2em;
             font-weight: bold;
+            color: #495057;
         }
         .company-tag {
             background-color: #e9ecef;
@@ -27,11 +33,29 @@
             border-radius: 12px;
             font-size: 0.8em;
             margin: 2px;
+            color: #495057;
+        }
+        .navbar {
+            background-color: #495057 !important;
+        }
+        .card-header {
+            background-color: #f8f9fa;
+            border-bottom: 1px solid #dee2e6;
+        }
+        .stats-card {
+            background-color: white;
+            border: 1px solid #dee2e6;
+            color: #495057;
+        }
+        .explanation-text {
+            font-size: 0.85em;
+            color: #6c757d;
+            margin-top: 5px;
         }
     </style>
 </head>
 <body>
-    <nav class="navbar navbar-expand-lg navbar-dark bg-primary">
+    <nav class="navbar navbar-expand-lg navbar-dark">
         <div class="container">
             <a class="navbar-brand" href="#">
                 <i class="fas fa-pills"></i> Pharma Lead Finder
@@ -48,34 +72,38 @@
         <!-- Dashboard Stats -->
         <div class="row mb-4">
             <div class="col-md-3">
-                <div class="card bg-primary text-white">
+                <div class="card stats-card">
                     <div class="card-body">
                         <h5 class="card-title">Total Leads</h5>
                         <h3 id="totalLeads">-</h3>
+                        <div class="explanation-text">Companies with trials meeting our criteria</div>
                     </div>
                 </div>
             </div>
             <div class="col-md-3">
-                <div class="card bg-success text-white">
+                <div class="card stats-card">
                     <div class="card-body">
                         <h5 class="card-title">High Priority</h5>
                         <h3 id="highPriority">-</h3>
+                        <div class="explanation-text">Companies with >70% FDA approval likelihood</div>
                     </div>
                 </div>
             </div>
             <div class="col-md-3">
-                <div class="card bg-warning text-white">
+                <div class="card stats-card">
                     <div class="card-body">
                         <h5 class="card-title">6-Month Pipeline</h5>
                         <h3 id="pipelineCount">-</h3>
+                        <div class="explanation-text">Trials completing within 6 months</div>
                     </div>
                 </div>
             </div>
             <div class="col-md-3">
-                <div class="card bg-info text-white">
+                <div class="card stats-card">
                     <div class="card-body">
                         <h5 class="card-title">Avg. FDA Score</h5>
                         <h3 id="avgScore">-</h3>
+                        <div class="explanation-text">Average approval probability across all leads</div>
                     </div>
                 </div>
             </div>
@@ -150,7 +178,7 @@
         <div class="modal-dialog modal-lg">
             <div class="modal-content">
                 <div class="modal-header">
-                    <h5 class="modal-title">Company Details</h5>
+                    <h5 class="modal-title">Trial History</h5>
                     <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
                 </div>
                 <div class="modal-body" id="companyDetails"></div>
@@ -210,7 +238,7 @@
                     <div class="card-body">
                         <div class="d-flex justify-content-between align-items-start">
                             <h6 class="card-title">${lead.drug_name || 'Unknown Drug'}</h6>
-                            <span class="badge bg-${lead.priority === 'High' ? 'danger' : lead.priority === 'Medium' ? 'warning' : 'success'}">
+                            <span class="badge bg-${lead.priority === 'High' ? 'danger' : lead.priority === 'Medium' ? 'warning text-dark' : 'success'}">
                                 ${lead.priority}
                             </span>
                         </div>
@@ -223,7 +251,7 @@
                             </div>
                             <div class="col-6">
                                 <small class="text-muted">FDA Likelihood:</small><br>
-                                <span class="likelihood-score text-primary">${lead.fda_likelihood}%</span>
+                                <span class="likelihood-score">${lead.fda_likelihood}%</span>
                             </div>
                         </div>
                         <div class="mt-2">
@@ -231,8 +259,8 @@
                             <small class="text-muted">Completion: ${lead.completion_date || 'TBD'}</small>
                         </div>
                         <div class="mt-2">
-                            <button class="btn btn-sm btn-outline-primary" onclick="viewCompanyDetails('${lead.companies[0]}')">
-                                <i class="fas fa-eye"></i> View Details
+                            <button class="btn btn-sm btn-outline-secondary" onclick="viewCompanyDetails('${lead.companies[0]}')">
+                                <i class="fas fa-eye"></i> View Trial History for ${lead.companies[0]}
                             </button>
                             <a href="https://clinicaltrials.gov/ct2/show/${lead.nct_id}" target="_blank" class="btn btn-sm btn-outline-secondary">
                                 <i class="fas fa-external-link-alt"></i> ClinicalTrials.gov
