@@ -10,7 +10,7 @@ import os
 app = Flask(__name__)
 
 class ClinicalTrialsAPI:
-    """Interface for ClinicalTrials.gov API v2.0"""
+    """Interface for ClinicalTrials.gov API v2.0 - Updated Jan 2025"""
     
     BASE_URL = "https://clinicaltrials.gov/api/v2/studies"
     
